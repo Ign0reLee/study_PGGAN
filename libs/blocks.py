@@ -5,7 +5,7 @@ from libs.layers import *
 from libs.utils import num_flat_features
 
 class GDefaultBlocks(nn.Module):
-    # Default Blocks is PGGAN's first blocks
+    # Default Blocks is PGGAN's Generator first blocks
     # Input Noise Vector Size = [Batch, LatentDim(defualt=512), 1, 1]
     # Output Image            = [Batch, Scale0_Feature, Scale0_H, Scale0_W]
     def __init__(self, in_channels, out_channels, relu=0.1, Scale0_H=4, Scale0_W=4):
@@ -41,9 +41,41 @@ class GDefaultBlocks(nn.Module):
 
         return  h
 
+class DDefaultBlocks(nn.Module):
+    # Default Blocks is PGGAN's Discriminator first blocks
+
+
+    def __init__(self, in_channels, out_channels, decision, kernel_size=3, stride=1, padding=1, relu=0.2, bias=True, Scale0_H=4, Scale0_W=4):
+        super(DDefaultBlocks, self).__init__()
+
+        self.block = EqulizedConv2DLayer(in_channels, out_channels, kernel_size, stride, padding, bias)
+        self.lrelu1 = nn.LeakyReLU(relu)
+        self.linear = EqulizedLinearLayer(out_channels * Scale0_W * Scale0_H, out_channels)
+        self.lrelu2 = nn.LeakyReLU(relu)
+        self.decisionLayer = EqulizedLinearLayer(out_channels, decision)
+    
+    def forward(self, x):
+        # This is Always Last Layer 
+        # So inputs Shape: [B, Scale1_Features, 4, 4]
+        h = self.block(x)
+        h = self.lrelu1(h)
+
+        # Input Shape : [B, Scale0_Features, 4, 4]
+        # Make Shape  : [B, 4 * 4 * Scale0_Features]
+        h = h.view(-1, num_flat_features(h))
+
+        # Shape : [B, Scale0_Features]
+        h = self.linear(h)
+        h = self.lrelu2(h)
+
+        # Shape : [B, Decision(default: 1)]
+        h = self.decisionLayer(h)
+        return h
+
+
 
 class GeneratorBlocks(nn.Module):
-    # Generator Blcoks For Up Scaling
+    # Generator Blocks For Up Scaling
     # Upsampling Nearest Neighbor Method
     # Forwarding 2 CLP Blocks
 
@@ -59,6 +91,13 @@ class GeneratorBlocks(nn.Module):
     
     def forward(self, x):
         return self.block(x)
+
+class DiscriminaotrBlocks(nn.Module):
+    # Discriminator Blocks For Down Scaling
+    # 
+
+    def __init__(self):
+        super(DiscriminaotrBlocks, self).__init__()
 
 if __name__ == "__main__":
     # Testing Generator Default Block
