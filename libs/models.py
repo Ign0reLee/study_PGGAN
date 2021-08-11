@@ -63,9 +63,6 @@ class Generator(nn.Module):
 
         # Forwarding Before Scale Layer
         for scale, block in enumerate(self.Scale_Layer[:-1]):
-            # if scale is not 0, it means need to be upscaling
-            if scale is not 0:
-                x = self.Upscale2d(x)
             x = block(x)
 
         # Alpha blending Image Generation
@@ -74,8 +71,6 @@ class Generator(nn.Module):
             y = self.Upscale2d(y)
         
         # Forwarding Last Scale Layer
-        if scale is not None:
-            x = self.Upscale2d(x) # need to be upscaling
         x = self.Scale_Layer[-1](x)
 
         # To RGB
@@ -96,22 +91,25 @@ class Generator(nn.Module):
 
 class Discriminator(nn.Module):
     
-    def __init__(self, in_channels, dim_output=3, scale_features=[512, 512, 256, 256], relu=0.2, block=5, size=1, GenerationActivation=None):
+    def __init__(self, in_channels, dim_input=3, scale_features=[512, 512, 256, 256], relu=0.2, block=5, size=1, MiniBatchStd=None):
         super(Discriminator, self).__init__()
 
-        # Set Scalar of Generator
+        # Set Scalar of Discriminator
         self.image_default_H = 4
         self.image_default_W = 4
         self.alpha = 0
         self.scale = 0
         self.size = size
-        self.dim_output = dim_output
+        self.dim_input = dim_input
         self.in_channels = in_channels
         self.scale_features = scale_features
 
-        # Set Module List of Generator
+        # Set Module List of Discriminator
         self.Scale_Layer = nn.ModuleList() 
-        self.toRGB_Layer = nn.ModuleList()
+        self.fromRGB_Layer = nn.ModuleList()
+
+        # Additional Layers
+        self.MiniBatchStd = MiniBatchStd
 
 
 if __name__ == "__main__":
