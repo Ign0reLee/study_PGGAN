@@ -9,3 +9,5 @@ from .layers import *
 from .models import *
 from .utils  import *
 from .blocks import *
+from .gans   import *
+from .trainer import *

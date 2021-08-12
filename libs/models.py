@@ -7,7 +7,7 @@ from libs.blocks import *
 from libs.layers import EqulizedConv2DLayer
 
 class Generator(nn.Module):
-    def __init__(self, in_channels, batch_size=None, dim_output=3, scale_features=[512, 512, 256, 256], relu=0.2, size=1, GenerationActivation=None):
+    def __init__(self, in_channels, batch_size=None, dim_output=3, scale_features=[512, 512, 256, 256], relu=0.2, GenerationActivation=None):
         super(Generator, self).__init__()
 
         # Set Scalar of Generator
@@ -17,7 +17,6 @@ class Generator(nn.Module):
         self.scale = 0
         self.NowScale = 0
         self.relu = relu
-        self.size = size
         self.dim_output = dim_output
         self.in_channels = in_channels
         self.scale_features = scale_features.copy()
@@ -53,7 +52,7 @@ class Generator(nn.Module):
         self.Scale_Layer.append(GeneratorBlocks(LastSize, NewSize, 3, 1, 1, self.relu))
         self.toRGB_Layer.append(EqulizedConv2DLayer(NewSize, self.dim_output, 1, 1, 0, True))
     
-    def SetAlpha(self, alpha):
+    def setAlpha(self, alpha):
         # Set New Alpha
         if alpha < 0 or alpha >1:
             raise ValueError("Alpha must be in [0, 1]")
@@ -104,7 +103,7 @@ class Generator(nn.Module):
     
 
 class Discriminator(nn.Module):
-    def __init__(self, in_channels, batch_size=None,dim_input=3, scale_features=[512, 512, 256, 256], relu=0.2, block=5,decision=1, size=1, MiniBatchStd=True):
+    def __init__(self, batch_size=None,dim_input=3, scale_features=[512, 512, 256, 256], relu=0.2, decision=1, MiniBatchStd=True):
         super(Discriminator, self).__init__()
 
         # Set Scalar of Discriminator
@@ -113,9 +112,7 @@ class Discriminator(nn.Module):
         self.alpha = 0
         self.scale = 0
         self.NowScale = 0
-        self.size = size
         self.dim_input = dim_input
-        self.in_channels = in_channels
         self.scale_features = scale_features.copy()
         self.batch_size = batch_size
         self.decision = decision
@@ -131,14 +128,12 @@ class Discriminator(nn.Module):
 
         self.Scale_Layer.append(DDefaultBlocks(scale_features[self.NowScale], scale_features[self.NowScale], decision, Scale0_W=self.image_default_W, Scale0_H=self.image_default_H, MiniBatchstd=MiniBatchStd))
 
-        
-
         # Additional Layers
         self.MiniBatchStd = MiniBatchStd
         self.Pool2d  = nn.AvgPool2d(kernel_size=2, stride=2)
         self.lrelu   = nn.LeakyReLU(relu)
     
-    def SetAlpha(self, alpha):
+    def setAlpha(self, alpha):
         # Set New Alpha
         if alpha < 0 or alpha >1:
             raise ValueError("Alpha must be in [0, 1]")
@@ -220,7 +215,7 @@ if __name__ == "__main__":
     print(f"Generator's Result : {test_output.shape}")
 
     # Testing Discriminator
-    test_D = Discriminator(in_channels=512, scale_features=test_scale_features, batch_size=8)
+    test_D = Discriminator(scale_features=test_scale_features, batch_size=8)
     test_fake = test_D(test_output)
     print(repr(test_D))
     print(f"\nDiscriminator's Result : {test_fake.shape}")
@@ -241,8 +236,8 @@ if __name__ == "__main__":
     print(f"\nDiscriminator's Result : {test_fake.shape}")
 
     # Testing Set Alpha
-    test_G.SetAlpha(0.5)
-    test_D.SetAlpha(0.5)
+    test_G.setAlpha(0.5)
+    test_D.setAlpha(0.5)
     print("\n Set Alpha ... ")
 
 
