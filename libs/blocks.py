@@ -43,6 +43,7 @@ class GDefaultBlocks(nn.Module):
 
 class DDefaultBlocks(nn.Module):
     # Default Blocks is PGGAN's Discriminator first blocks
+    # This block's poisition is always Last Layer
 
 
     def __init__(self, in_channels, out_channels, decision, kernel_size=3, stride=1, padding=1, relu=0.2, bias=True, Scale0_H=4, Scale0_W=4):
@@ -55,7 +56,6 @@ class DDefaultBlocks(nn.Module):
         self.decisionLayer = EqulizedLinearLayer(out_channels, decision)
     
     def forward(self, x):
-        # This is Always Last Layer 
         # So inputs Shape: [B, Scale1_Features, 4, 4]
         h = self.block(x)
         h = self.lrelu1(h)
@@ -96,18 +96,42 @@ class DiscriminaotrBlocks(nn.Module):
     # Discriminator Blocks For Down Scaling
     # 
 
-    def __init__(self):
+    def __init__(self, in_channels, out_channels, pool_kernel=2, pool_stride=2,conv_kernel=3, conv_stride=1, conv_padding=1, conv_bias=True, relu=0.2):
         super(DiscriminaotrBlocks, self).__init__()
+        blocks  = []
+        blocks += [EqulizedConv2DLayer(in_channels, in_channels, conv_kernel, conv_stride, conv_padding, conv_bias)]
+        blocks += [nn.LeakyReLU(relu)]
+        blocks += [EqulizedConv2DLayer(in_channels, out_channels, conv_kernel, conv_stride, conv_padding, conv_bias)]
+        blocks += [nn.LeakyReLU(relu)]
+        blocks += [nn.AvgPool2d(kernel_size=pool_kernel, stride=pool_stride)]
+
+        self.block = nn.Sequential(*blocks)
+    
+    def forward(self, x):
+        return self.block(x)
+        
 
 if __name__ == "__main__":
-    # Testing Generator Default Block
+    # Testing Generator's Default Block
     test_input = torch.randn((8, 512, 1, 1))
     block      = GDefaultBlocks(512, 512)
     test_out   =  block(test_input)
-    print(f"Testing Default Block Done... : {test_out.shape}")
+    print(f"Testing Generator's Default Block Done... : {test_out.shape}")
 
     # Testing Generator's Up-Scaling Blocks
     test_input = torch.randn((8, 512, 4, 4))
     block      = GeneratorBlocks(512, 512, 3, 1, 1)
     test_out   =  block(test_input)
     print(f"Testing Generator's Up-Scaling Block Done... : {test_out.shape}")
+
+    # Testing Discriminator's Default Block
+    test_input = torch.randn((8, 512, 4, 4))
+    block      = DDefaultBlocks(512, 512, 1)
+    test_out   = block(test_input)
+    print(f"Testing Discriminator's Default Block Done... :  {test_out.shape}")
+
+    # Testing Discriminator's Down-ScalingBlocks
+    test_input = torch.randn((8, 256, 8, 8))
+    block      = DiscriminaotrBlocks(256,512)
+    test_out   = block(test_input)
+    print(f"Testing Discriminator's Down-Scaling Block Done... :  {test_out.shape}")
