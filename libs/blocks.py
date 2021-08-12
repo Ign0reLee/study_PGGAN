@@ -46,9 +46,11 @@ class DDefaultBlocks(nn.Module):
     # This block's poisition is always Last Layer
 
 
-    def __init__(self, in_channels, out_channels, decision, kernel_size=3, stride=1, padding=1, relu=0.2, bias=True, Scale0_H=4, Scale0_W=4):
+    def __init__(self, in_channels, out_channels, decision, kernel_size=3, stride=1, padding=1, relu=0.2, bias=True, Scale0_H=4, Scale0_W=4, MiniBatchstd=True):
         super(DDefaultBlocks, self).__init__()
 
+        self.MiniBatchstd = MiniBatchstd
+        self.minBatchstd = MiniBatchStandardDeviationLayer()
         self.block = EqulizedConv2DLayer(in_channels, out_channels, kernel_size, stride, padding, bias)
         self.lrelu1 = nn.LeakyReLU(relu)
         self.linear = EqulizedLinearLayer(out_channels * Scale0_W * Scale0_H, out_channels)
@@ -57,6 +59,10 @@ class DDefaultBlocks(nn.Module):
     
     def forward(self, x):
         # So inputs Shape: [B, Scale1_Features, 4, 4]
+        # if minibatchstd True
+        if self.MiniBatchstd:
+            x = self.minBatchstd(x)
+
         h = self.block(x)
         h = self.lrelu1(h)
 
@@ -126,7 +132,7 @@ if __name__ == "__main__":
 
     # Testing Discriminator's Default Block
     test_input = torch.randn((8, 512, 4, 4))
-    block      = DDefaultBlocks(512, 512, 1)
+    block      = DDefaultBlocks(513, 512, 1)
     test_out   = block(test_input)
     print(f"Testing Discriminator's Default Block Done... :  {test_out.shape}")
 
