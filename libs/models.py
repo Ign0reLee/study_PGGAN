@@ -7,7 +7,7 @@ from libs.blocks import *
 from libs.layers import EqulizedConv2DLayer
 
 class Generator(nn.Module):
-    def __init__(self, in_channels, batch_size=None, dim_output=3, scale_features=[512, 512, 256, 256], relu=0.2, GenerationActivation=None):
+    def __init__(self, in_channels, batch_size=None, dim_output=3, scale0 = 512, relu=0.2, GenerationActivation=None):
         super(Generator, self).__init__()
 
         # Set Scalar of Generator
@@ -19,7 +19,8 @@ class Generator(nn.Module):
         self.relu = relu
         self.dim_output = dim_output
         self.in_channels = in_channels
-        self.scale_features = scale_features.copy()
+        # self.scale_features = scale_features.copy()
+        self.scale_features = [scale0]
         self.batch_size = batch_size
 
         # Set Module List of Generator
@@ -27,8 +28,8 @@ class Generator(nn.Module):
         self.toRGB_Layer = nn.ModuleList()
 
         # Set Default Block
-        self.Scale_Layer.append(GDefaultBlocks(in_channels=in_channels, out_channels=scale_features[self.NowScale], relu=relu, Scale0_H=self.image_default_H, Scale0_W=self.image_default_W))
-        self.toRGB_Layer.append(EqulizedConv2DLayer(scale_features[self.NowScale], dim_output, 1, 1, 0))
+        self.Scale_Layer.append(GDefaultBlocks(in_channels=in_channels, out_channels=scale0, relu=relu, Scale0_H=self.image_default_H, Scale0_W=self.image_default_W))
+        self.toRGB_Layer.append(EqulizedConv2DLayer(scale0, dim_output, 1, 1, 0))
 
         # Set Additional Layer
         self.Upscale2d = nn.UpsamplingNearest2d(scale_factor=2)
@@ -36,21 +37,20 @@ class Generator(nn.Module):
 
     def getOutputSize(self):
         # Find Generator's Now Output Size
-        now_scale =  (2 ** len(self.toRGB_Layer) - 1)
+        now_scale =  2 ** (len(self.toRGB_Layer) - 1)
         H = self.image_default_H * now_scale
         W = self.image_default_W * now_scale
         return (H, W)
     
-    def addSacle(self):
+    def addSacle(self, newScale):
         # Update Now Scale
         # Append New Layer
 
-        self.NowScale += 1
-        LastSize = self.scale_features[self.NowScale - 1]
-        NewSize  = self.scale_features[self.NowScale]
+        LastSize = self.scale_features[- 1]
+        self.scale_features.append(newScale)
 
-        self.Scale_Layer.append(GeneratorBlocks(LastSize, NewSize, 3, 1, 1, self.relu))
-        self.toRGB_Layer.append(EqulizedConv2DLayer(NewSize, self.dim_output, 1, 1, 0, True))
+        self.Scale_Layer.append(GeneratorBlocks(LastSize, newScale, 3, 1, 1, self.relu))
+        self.toRGB_Layer.append(EqulizedConv2DLayer(newScale, self.dim_output, 1, 1, 0, True))
     
     def setAlpha(self, alpha):
         # Set New Alpha
@@ -86,16 +86,13 @@ class Generator(nn.Module):
         return x
     
     def __repr__(self):
-        output_string = f"""
-        ==========================
-        Generator's Information
-        ==========================
-        """
+        output_string = "==========================\n"
+        output_string += "Generator's Information\n"
+        output_string += "==========================\n"
         additional_string=""
-        for index, features in enumerate(self.scale_features[:self.NowScale+1]):
+        for index, features in enumerate(self.scale_features):
             now_scale =  (2 ** index)
-            additional_string += f"block{index} : [{self.batch_size}, {self.image_default_H * now_scale}, {self.image_default_W * now_scale}, {features}]"
-            additional_string += "\n        " 
+            additional_string += f"block{index} : [{self.batch_size}, {self.image_default_H * now_scale}, {self.image_default_W * now_scale}, {features}]\n"
         return output_string+additional_string
         
 
@@ -103,7 +100,7 @@ class Generator(nn.Module):
     
 
 class Discriminator(nn.Module):
-    def __init__(self, batch_size=None,dim_input=3, scale_features=[512, 512, 256, 256], relu=0.2, decision=1, MiniBatchStd=True):
+    def __init__(self, batch_size=None,dim_input=3, scale0=512, relu=0.2, decision=1, MiniBatchStd=True):
         super(Discriminator, self).__init__()
 
         # Set Scalar of Discriminator
@@ -113,7 +110,7 @@ class Discriminator(nn.Module):
         self.scale = 0
         self.NowScale = 0
         self.dim_input = dim_input
-        self.scale_features = scale_features.copy()
+        self.scale_features = [scale0]
         self.batch_size = batch_size
         self.decision = decision
 
@@ -121,12 +118,12 @@ class Discriminator(nn.Module):
         self.Scale_Layer = nn.ModuleList() 
         self.fromRGB_Layer = nn.ModuleList()
 
-        self.fromRGB_Layer.append(EqulizedConv2DLayer(dim_input, scale_features[self.NowScale], 1, 1, 0))
+        self.fromRGB_Layer.append(EqulizedConv2DLayer(dim_input, scale0, 1, 1, 0))
 
         if MiniBatchStd:
-            scale_features[self.NowScale] += 1
+            scale0 += 1
 
-        self.Scale_Layer.append(DDefaultBlocks(scale_features[self.NowScale], scale_features[self.NowScale], decision, Scale0_W=self.image_default_W, Scale0_H=self.image_default_H, MiniBatchstd=MiniBatchStd))
+        self.Scale_Layer.append(DDefaultBlocks(scale0, scale0, decision, Scale0_W=self.image_default_W, Scale0_H=self.image_default_H, MiniBatchstd=MiniBatchStd))
 
         # Additional Layers
         self.MiniBatchStd = MiniBatchStd
@@ -140,17 +137,17 @@ class Discriminator(nn.Module):
         
         self.alpha = alpha
 
-    def addSacle(self):
+    def addSacle(self, newScale):
         # Update Now Scale
         # Append New Layer
         # In Scalar Layer Insert! Because, Discriminator is setting reversed Generator.
 
         self.NowScale += 1
-        LastSize = self.scale_features[self.NowScale - 1]
-        NewSize  = self.scale_features[self.NowScale]
+        lastScale = self.scale_features[- 1]
+        self.scale_features.append(newScale)
 
-        self.Scale_Layer.insert(0, DiscriminaotrBlocks(NewSize, LastSize))
-        self.fromRGB_Layer.append(EqulizedConv2DLayer(self.dim_input, NewSize, 1, 1, 0, True))
+        self.Scale_Layer.insert(0, DiscriminaotrBlocks(newScale, lastScale))
+        self.fromRGB_Layer.append(EqulizedConv2DLayer(self.dim_input, newScale, 1, 1, 0, True))
     
     def forward(self, x):
         # Inputs Shape [B, Scale Size, Scale Res H, Scale Res W]
@@ -179,26 +176,20 @@ class Discriminator(nn.Module):
         return x
         
     def __repr__(self):
-        output_string = f"""
-        ==========================
-        Discriminator's Information
-        ==========================
-        """
+        output_string = "==========================\n"
+        output_string += "Discriminator's Information\n"
+        output_string += "==========================\n"
         additional_string=""
         input_scale = 2 ** (self.NowScale)
         input_H = self.image_default_H * input_scale
         input_W = self.image_default_W * input_scale
 
-        for index, features in enumerate(reversed(self.scale_features[:self.NowScale+1])):
+        for index, features in enumerate(reversed(self.scale_features)):
             now_scale =  (2 ** index)
-            additional_string += f"block{index} : [{self.batch_size}, {input_H // now_scale}, {input_W // now_scale}, {features}]"
-            additional_string += "\n        "
-        additional_string += "\n        " 
-        additional_string += f"Decision Block : [{self.batch_size}, {self.decision}]"
-        additional_string += "\n        " 
-        
-        additional_string += f"\n        "
-        additional_string += f"Mini Batch std : {self.MiniBatchStd}" 
+            additional_string += f"block{index} : [{self.batch_size}, {input_H // now_scale}, {input_W // now_scale}, {features}]\n"
+
+        additional_string += f"\nDecision Block : [{self.batch_size}, {self.decision}]\n"
+        additional_string += f"\nMini Batch std : {self.MiniBatchStd}" 
         return output_string + additional_string
 
 
@@ -209,20 +200,20 @@ if __name__ == "__main__":
 
     # Testing Scale 0 
     # Testing Generator
-    test_G = Generator(in_channels=512, scale_features=test_scale_features, batch_size=8)
+    test_G = Generator(in_channels=512, scale0=test_scale_features[0], batch_size=8)
     test_output = test_G(test_input)
     print(repr(test_G))
     print(f"Generator's Result : {test_output.shape}")
 
     # Testing Discriminator
-    test_D = Discriminator(scale_features=test_scale_features, batch_size=8)
+    test_D = Discriminator(scale0=test_scale_features[0], batch_size=8)
     test_fake = test_D(test_output)
     print(repr(test_D))
     print(f"\nDiscriminator's Result : {test_fake.shape}")
 
     # Testing Scale 1
-    test_G.addSacle()
-    test_D.addSacle()
+    test_G.addSacle(test_scale_features[1])
+    test_D.addSacle(test_scale_features[1])
     print("\n UPScaling...")
 
     # Testing Generator

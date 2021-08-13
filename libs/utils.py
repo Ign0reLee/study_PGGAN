@@ -13,25 +13,51 @@ def num_flat_features(x):
         num_features *= s
     return num_features
 
-def save(ckpt_dir, model, optim, epoch, step, model_name="PGGAN"):
+def save(ckpt_dir, netG, netD, optimG, optimD, scale, step, model_name="PGGAN"):
+    r"""
+    Model Saver
 
-    torch.save({"model": model.state_dict(), "optimizer" : optim.state_dict()}, os.path.join(ckpt_dir, model_name, f"{model_name}_{epoch}_{step}.pth"))
+    Inputs:
+        ckpt_dir   : (string) check point directory
+        netG       : (nn.module) Generator Network
+        netD       : (nn.module) Discriminator Network
+        opitmG     : (torch.optim) Generator's Optimizers
+        optimD     : (torch.optim) Discriminator's  Optimizers
+        scale      : (int) Now Scale
+        step       : (int) Now Step
+        model_name : (string) Saving model file's name
+    """
 
-def load(ckpt_dir, model, optim, epoch=None, step=None):
+    torch.save({"netG": netG.state_dict(),
+                "netD": netD.state_dict(),
+                "optimG" : optimG.state_dict(),
+                "optimD" : optimD.state_dict()},
+                os.path.join(ckpt_dir, model_name, f"{model_name}_{scale}_{step}.pth"))
+
+def load(ckpt_dir, netG, netD, optimG, optimD, scale=None, step=None):
+    r"""
+    Model Lodaer
+
+    Inputs:
+        ckpt_dir : (string) check point directory
+        netG     : (nn.module) Generator Network
+        netD     : (nn.module) Discriminator Network
+        opitmG   : (torch.optim) Generator's Optimizers
+        optimD   : (torch.optim) Discriminator's  Optimizers
+        scale    : (int) find scale. if None, last scale
+        step     : (int) find step.  if NOne, last scale
+    """
     
     ckpt_lst = None
 
-    if epoch is not None:
-        ckpt_lst = [i for i in os.listdir(ckpt_dir) if int(i.split("_")[-2]) == epoch]
+    if scale is not None:
+        ckpt_lst = [i for i in os.listdir(ckpt_dir) if int(i.split("_")[-2]) == scale]
     
-    print(ckpt_lst)
     if step is not None:
         if ckpt_lst is not None:
             ckpt_lst = [i for i in ckpt_lst if i.split("_")[-1][0] == step]
         else:
             ckpt_lst = [i for i in os.listdir(ckpt_dir) if int(i.split("_")[-1][:-4]) == step]
-    
-    print(ckpt_lst)
     
     if ckpt_lst is None:
         ckpt_lst = os.listdir(ckpt_dir)
@@ -39,20 +65,18 @@ def load(ckpt_dir, model, optim, epoch=None, step=None):
     ckpt_lst.sort(key=lambda f: int(''.join(filter(str.isdigit, f))))
 
 
-    # Load Epoch And Step
-    epoch = int(ckpt_lst[-1].split("_")[-2])
+    # Load Scale And Step
+    scale = int(ckpt_lst[-1].split("_")[-2])
     step = int(ckpt_lst[-1].split("_")[-1][:-4])
-    print(epoch)
-    print(step)
-    print(ckpt_lst)
 
     # Load Model
     dict_model = torch.load(os.path.join(ckpt_dir, ckpt_lst[-1]))
-    model.load_state_dict(dict_model['model'])
-    optim.load_state_dict(dict_model["optimizer"])
+    netG.load_state_dict(dict_model['netG'])
+    netD.load_state_dict(dict_model['netD'])
+    optimG.load_state_dict(dict_model["optimG"])
+    optimD.load_state_dict(dict_model["optimD"])
     
-
-    return model, optim, epoch, step
+    return netG, netD, optimG, optimD, scale, step
 
 if __name__ == "__main__":
     # Load Testing
