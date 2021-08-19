@@ -55,7 +55,7 @@ class ProgressiveGrowingGAN(nn.Module):
         print(repr(self.netG))
         print(repr(self.netD))
     
-    def oneIter(self, realInput):
+    def oneStep(self, realInput):
         # Main Forward Pipeline
         # We just using WGAN-GP
         

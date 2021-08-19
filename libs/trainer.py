@@ -45,7 +45,7 @@ class Trainer():
         return alpha - diffJump
 
     
-    def train(self, x):
+    def train(self, loader):
 
         if self.restart:
             print("Model Loading...")
@@ -77,8 +77,16 @@ class Trainer():
                      self.model.updateAlpha(alpha)
 
                 # Main Iteration
-                self.model.oneIter()
-                print(f"Scale {index} | Iter {nowIter} / {self.nIterations[index]} | Loss G {np.mean(self.model.lossG)} | Loss D {np.mean(self.model.lossD)}")
+                for data in loader:
+                    real_input = data["real_img"]
+                    self.model.oneStep(real_input)
+
+                # Print 100 Iteration
+                if nowIter % 100 == 0 or self.nIterations[index] == nowIter:
+                    print(f"Scale {index} | Iter {nowIter} / {self.nIterations[index]} | Loss G {np.mean(self.model.lossG)} | Loss D {np.mean(self.model.lossD)}")
+                    self.model.lossG      = []
+                    self.model.lossD      = []
+                    self.model.lossWGANGP = []
 
                 # If iterating save iter, model save
                 if nowIter % self.saveIter == 0:
