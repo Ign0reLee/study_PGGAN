@@ -1,7 +1,13 @@
+from datalib.compose import Normalization, RandomFlip, Resize
 import numpy as np
 
 import torch
 import torch.nn
+
+from torchvision import transforms
+from torch.utils.data import DataLoader
+
+from datalib.datasets import Dataset
 
 from libs.utils import save, load
 from libs.gans import ProgressiveGrowingGAN as PGGAN
@@ -11,6 +17,7 @@ from libs.gans import ProgressiveGrowingGAN as PGGAN
 class Trainer():
     def __init__(self,
                 path,
+                batchSize=8,
                 ckptDir="ckpt_dir",
                 modelName = "FFHQ_PGGAN",
                 latentDims=512,
@@ -25,7 +32,7 @@ class Trainer():
         assert scale_features[0] == latentDims, f"Latent Dim and Scale Features 0 must be same value! Now : [Latent Dim: {latentDims}, Scale 0: {scale_features[0]}]"
         assert len(nIterations) == len(scale_features), f"Iteraion's Info must be same as Scale Features! Now : [Iterations: {len(nIterations)}, ScaleFeatures: {len(scale_features)}]"
 
-        self.model = PGGAN(latentDims=latentDims, decision=decision)
+        self.model = PGGAN(latentDims=latentDims, decision=decision, batchSize=batchSize)
 
         self.nIterations = nIterations
         self.scale_features = scale_features
@@ -35,9 +42,17 @@ class Trainer():
         self.restart = restart
         self.ckptDir = ckptDir
         self.modelName = modelName
+        self.path = path
+        self.batchSize = batchSize
+        self.nowH, self.nowW = self.model.getOutputSize()
 
         self.startScale = 0
         self.startStep  = 0
+
+        # Make Default DataSet
+        self.transform_train = transforms.Compose([Resize(self.nowH, self.nowW), RandomFlip(horizontal=False), Normalization(mean=0.5, std=0.5)])
+        self.dataset_train = Dataset(data_dir=path, transforms=self.transform_train)
+        self.loader_train = DataLoader(self.dataset_train, batch_size=batchSize, shuffle=True, num_workers=0)
     
     def updateAlphaJumps(self, alpha):
 
@@ -45,7 +60,7 @@ class Trainer():
         return alpha - diffJump
 
     
-    def train(self, loader):
+    def train(self):
 
         if self.restart:
             print("Model Loading...")
@@ -58,6 +73,13 @@ class Trainer():
             if index is not 0:
                 self.model.addScale(scale)
                 self.model.alpha = 1.0
+                self.nowH, self.nowW = self.model.getOutputSize()
+
+
+                # Make Loader New Scale
+                self.transform_train = transforms.Compose([Resize(self.nowH, self.nowW), RandomFlip(horizontal=False), Normalization(mean=0.5, std=0.5)])
+                self.dataset_train = Dataset(data_dir=self.path, transforms=self.transform_train)
+                self.loader_train = DataLoader(self.dataset_train, batch_size=self.batchSize, shuffle=True, num_workers=0)
             
             if self.startScale > index:
                 # If restart on.
@@ -77,7 +99,7 @@ class Trainer():
                      self.model.updateAlpha(alpha)
 
                 # Main Iteration
-                for data in loader:
+                for data in self.loader_train:
                     real_input = data["real_img"]
                     self.model.oneStep(real_input)
 
