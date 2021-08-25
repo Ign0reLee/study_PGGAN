@@ -1,0 +1,17 @@
+{
+    "Path" : "../Data/FFHQ",
+    "BatchSize": 8,
+    "nIterations" : [24000,
+                    24000,
+                    24000,
+                    24000,
+                    24000],
+
+    "scale_features" : [512,
+                        512,
+                        256,
+                        256,
+                        128],
+    "latentDims" : 512
+
+}

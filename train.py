@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser(description="Face Generate From Small Landmark 
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument("-m", "--mode",  default="train", choices=["train", "test"], type=str, dest="mode")
-parser.add_argument('-c', '--config', help="Model's name", type=str, dest="config")
+parser.add_argument('-c', '--config', help="Model's Config", type=str, dest="config")
 parser.add_argument("-n", "--name", help="Model's Name", type=str, dest="name")
 parser.add_argument("-o", "--outPath", default="resultModel",help="Output Directory", type=str, dest="outPath")
 parser.add_argument("-s", "--saveIter", help="Save Iteration", type=int, dest="saveIter")
@@ -37,8 +37,19 @@ outPath = os.path.join(outPath, nameModel)
 if not os.path.exists(outPath):
     os.mkdir(outPath)
 
+with open(config, "r") as jsonFile:
+    jsonData = json.load(jsonFile)
+    path     = jsonData["Path"]
+    batchSzie = jsonData["BatchSize"]
+    nIters = jsonData["nIterations"]
+    nSclaes = jsonData["scale_features"]
+    latentDims = jsonData["latentDims"]
+    numWorker=os.cpu_count()//2
 
-trainer = Trainer()
+
+trainer = Trainer(path=path, batchSize=batchSzie, ckptDir=outPath, modelName=nameModel,
+                latentDims=latentDims, restart=restart, saveIter=saveIter, nIterations=nIters, 
+                scale_features=nSclaes, numWorker=numWorker)
 
 
 if __name__ == "__main__":
@@ -52,3 +63,5 @@ if __name__ == "__main__":
         print(f"Restart : {restart}")
     print(f"Model Name : {nameModel}")
     print("====================")
+
+    trainer.train()

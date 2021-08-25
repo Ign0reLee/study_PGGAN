@@ -1,4 +1,4 @@
-from datalib.compose import Normalization, RandomFlip, Resize
+import gc, os
 import numpy as np
 
 import torch
@@ -8,6 +8,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 
 from datalib.datasets import Dataset
+from datalib.compose import Normalization, RandomFlip, Resize
 
 from libs.utils import save, load
 from libs.gans import ProgressiveGrowingGAN as PGGAN
@@ -27,7 +28,8 @@ class Trainer():
                 nJumpScale=600,
                 sizeJumpScale=32,
                 nIterations=[24000, 24000, 24000, 24000, 24000],
-                scale_features=[512, 512, 256, 256, 128]):
+                scale_features=[512, 512, 256, 256, 128],
+                numWorker=os.cpu_count()//2):
         
         assert scale_features[0] == latentDims, f"Latent Dim and Scale Features 0 must be same value! Now : [Latent Dim: {latentDims}, Scale 0: {scale_features[0]}]"
         assert len(nIterations) == len(scale_features), f"Iteraion's Info must be same as Scale Features! Now : [Iterations: {len(nIterations)}, ScaleFeatures: {len(scale_features)}]"
@@ -43,6 +45,7 @@ class Trainer():
         self.ckptDir = ckptDir
         self.modelName = modelName
         self.path = path
+        self.numWorker = numWorker
         self.batchSize = batchSize
         self.nowH, self.nowW = self.model.getOutputSize()
 
@@ -52,7 +55,7 @@ class Trainer():
         # Make Default DataSet
         self.transform_train = transforms.Compose([Resize(self.nowH, self.nowW), RandomFlip(horizontal=False), Normalization(mean=0.5, std=0.5)])
         self.dataset_train = Dataset(data_dir=path, transforms=self.transform_train)
-        self.loader_train = DataLoader(self.dataset_train, batch_size=batchSize, shuffle=True, num_workers=0)
+        self.loader_train = DataLoader(self.dataset_train, batch_size=batchSize, shuffle=True, num_workers=self.numWorker)
     
     def updateAlphaJumps(self, alpha):
 
@@ -71,15 +74,17 @@ class Trainer():
             # Model Add Scale and Print Information
             # If index not 0(if not scale 0), set Alpha 1 and add Modle's Scale
             if index is not 0:
+                # Update Model
                 self.model.addScale(scale)
                 self.model.alpha = 1.0
                 self.nowH, self.nowW = self.model.getOutputSize()
 
-
                 # Make Loader New Scale
                 self.transform_train = transforms.Compose([Resize(self.nowH, self.nowW), RandomFlip(horizontal=False), Normalization(mean=0.5, std=0.5)])
                 self.dataset_train = Dataset(data_dir=self.path, transforms=self.transform_train)
-                self.loader_train = DataLoader(self.dataset_train, batch_size=self.batchSize, shuffle=True, num_workers=0)
+                self.loader_train = DataLoader(self.dataset_train, batch_size=self.batchSize, shuffle=True, num_workers=self.numWorker)
+
+                gc.collect()
             
             if self.startScale > index:
                 # If restart on.
