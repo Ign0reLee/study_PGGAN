@@ -64,4 +64,4 @@ if __name__ == "__main__":
     print(f"Model Name : {nameModel}")
     print("====================")
 
-    trainer.train()
+    trainer.runTrain()

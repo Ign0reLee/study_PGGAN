@@ -1,5 +1,6 @@
 import gc, os
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn
@@ -7,8 +8,10 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 
 from torchvision import transforms
+from torchvision import utils as vutils
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
+
 
 from torch.nn.parallel import DistributedDataParallel as DDP
 
@@ -17,6 +20,8 @@ from datalib.compose import Normalization, RandomFlip, Resize
 
 from libs.utils import init_process, save, load
 from libs.gans import ProgressiveGrowingGAN as PGGAN
+
+
 
 
 
@@ -58,10 +63,16 @@ class Trainer():
         self.startScale = 0
         self.startStep  = 0
 
-        # Make Default DataSet
+        # # Make Default DataSet
         self.transform_train = transforms.Compose([Resize(self.nowH, self.nowW), RandomFlip(horizontal=False), Normalization(mean=0.5, std=0.5)])
         self.dataset_train = Dataset(data_dir=path, transforms=self.transform_train)
-        self.loader_train = DataLoader(self.dataset_train, batch_size=batchSize, shuffle=True, num_workers=self.numWorker)
+        self.dataset_sampler = DistributedSampler(self.dataset_train)
+        self.loader_train = DataLoader(self.dataset_train, batch_size=self.batchSize, shuffle=False, num_workers=self.numWorker,
+                                        pin_memory=True, sampler=self.dataset_sampler)
+
+        # Output Additional Function
+        self.fn_toNumpy = lambda x: x.to("cpu").detach().numpy().transpose(0, 2, 3, 1)
+        self.fn_toDenorm = lambda x, mean, std: (x * std) + mean
     
     def updateAlphaJumps(self, alpha):
 
@@ -131,11 +142,37 @@ class Trainer():
 
                 # If iterating save iter, model save
                 if nowIter % self.saveIter == 0:
-                    save(self.ckptDir, self.model.netG, self.model.netD, self.model.optimG, self.model.optimD, index, nowIter, self.modelName)
+                    self.checkPoint(gpu,index, nowIter)
+                    img = self.outputSave()
+                    plt.imsave(os.path.join(self.ckptDir, self.modelName, f"{self.modelName}_{index}_{nowIter}.png"), img)
 
             # Initialize Some Setteing
             if self.startStep > 0:
                 self.startStep = 0
+    
+    def outputSave(self):
+        output = self.model.makeImage()
+        image = np.clip(self.fn_toNumpy(self.fn_toDenorm(output, 0.5, 0.5)).squeeze(), a_min=0, a_max=1)
+        batch, _,_,_ = np.shape(image)
+        
+        return np.concatenate((np.concatenate(image[:batch//2], axis=1), np.concatenate(image[batch//2:], axis=1)),axis=0)
+        
+                
+    def checkPoint(self, gpu, index, nowIter):
+
+        if gpu == 0:
+            save(self.ckptDir, self.model.netG, self.model.netD, self.model.optimG, self.model.optimD, index, nowIter, self.modelName)
+        
+        dist.barrier()
+        mapLocation = {"cuda:0": f"cuda:{gpu}"}
+        dict_model = torch.load(os.path.join(self.ckptDir, self.modelName, f"{self.modelName}_{index}_{nowIter}.pth"), map_location=mapLocation)
+        self.model.netG.module.load_state_dict(dict_model["netG"])
+        self.model.netD.module.load_state_dict(dict_model["netD"])
+
+    def runTrain(self):
+
+        gpus = torch.cuda.device_count()
+        mp.spawn(self.train, args=(gpus,), nprocs=gpus)
 
 
             

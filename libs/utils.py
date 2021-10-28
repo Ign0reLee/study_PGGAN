@@ -28,14 +28,29 @@ def save(ckpt_dir, netG, netD, optimG, optimD, scale, step, model_name="PGGAN"):
         step       : (int) Now Step
         model_name : (string) Saving model file's name
     """
+    if hasattr(netG, "module"):
+        netG_dicts =  netG.module.state_dict()
+        netD_dicts =  netD.module.state_dict()
+        try:
+            optimG_dicts = optimG.moudle.satae_dict()
+            optimD_dicts = optimD.moudle.satae_dict()
+        except:
+            optimG_dicts = optimG.satae_dict()
+            optimD_dicts = optimD.satae_dict()
 
-    torch.save({"netG": netG.state_dict(),
-                "netD": netD.state_dict(),
-                "optimG" : optimG.state_dict(),
-                "optimD" : optimD.state_dict()},
+    else:
+        netG_dicts =  netG.state_dict()
+        netD_dicts =  netD.state_dict()
+        optimG_dicts = optimG.satae_dict()
+        optimD_dicts = optimD.satae_dict()
+
+    torch.save({"netG": netG_dicts,
+                "netD": netD_dicts,
+                "optimG" : optimG_dicts,
+                "optimD" : optimD_dicts},
                 os.path.join(ckpt_dir, model_name, f"{model_name}_{scale}_{step}.pth"))
 
-def load(ckpt_dir, netG, netD, optimG, optimD, scale=None, step=None):
+def load(ckpt_dir, netG, netD, optimG, optimD, scale=None, step=None, gpu=None):
     r"""
     Model Lodaer
 
@@ -71,9 +86,20 @@ def load(ckpt_dir, netG, netD, optimG, optimD, scale=None, step=None):
     step = int(ckpt_lst[-1].split("_")[-1][:-4])
 
     # Load Model
-    dict_model = torch.load(os.path.join(ckpt_dir, ckpt_lst[-1]))
-    netG.load_state_dict(dict_model['netG'])
-    netD.load_state_dict(dict_model['netD'])
+    if gpu is not None:
+        dist.barrier()
+        mapLocation = {"cuda:0": f"cuda:{gpu}"}
+        dict_model = torch.load(os.path.join(ckpt_dir, ckpt_lst[-1]), map_location=mapLocation)
+    else:
+        dict_model = torch.load(os.path.join(ckpt_dir, ckpt_lst[-1]))
+
+    try:
+        netG.load_state_dict(dict_model['netG'])
+        netD.load_state_dict(dict_model['netD'])
+    except:
+        netG.module.load_state_dict(dict_model['netG'])
+        netD.module.load_state_dict(dict_model['netD'])
+        
     optimG.load_state_dict(dict_model["optimG"])
     optimD.load_state_dict(dict_model["optimD"])
     

@@ -103,6 +103,12 @@ class ProgressiveGrowingGAN():
 
         # Update One Step
         self.optimG.step()
+    
+    def makeImage(self):
+
+        fakeInput = torch.randn(self.batchSize, self.latentDims)
+        predOutput = self.netG(fakeInput)
+        return predOutput
         
 
 
