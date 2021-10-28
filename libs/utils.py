@@ -2,6 +2,7 @@ import os
 
 import torch
 import torch.nn as nn
+import torch.distributed as dist
 
 
 def num_flat_features(x):
@@ -77,6 +78,13 @@ def load(ckpt_dir, netG, netD, optimG, optimD, scale=None, step=None):
     optimD.load_state_dict(dict_model["optimD"])
     
     return netG, netD, optimG, optimD, scale, step
+
+def init_process(rank, size, path, backend="nccl"):
+    os.environ['NCCL_SOCKET_IFNAME'] = 'lo'
+    os.environ['NCCL_IB_DISABLE']= '1'
+    os.environ['LOCAL_RANK'] = str(rank)
+
+    dist.init_process_group(backend=backend, init_method='file://'+path+'/sharedfile', rank=rank, world_size=size)
 
 if __name__ == "__main__":
     # Load Testing

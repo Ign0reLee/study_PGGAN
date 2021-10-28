@@ -3,14 +3,19 @@ import numpy as np
 
 import torch
 import torch.nn
+import torch.distributed as dist
+import torch.multiprocessing as mp
 
 from torchvision import transforms
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from datalib.datasets import Dataset
 from datalib.compose import Normalization, RandomFlip, Resize
 
-from libs.utils import save, load
+from libs.utils import init_process, save, load
 from libs.gans import ProgressiveGrowingGAN as PGGAN
 
 
@@ -48,6 +53,7 @@ class Trainer():
         self.numWorker = numWorker
         self.batchSize = batchSize
         self.nowH, self.nowW = self.model.getOutputSize()
+        self.sharedFilePath = os.path.dirname(os.path.abspath(__file__))
 
         self.startScale = 0
         self.startStep  = 0
@@ -63,12 +69,18 @@ class Trainer():
         return alpha - diffJump
 
     
-    def train(self):
+    def train(self, gpu, size):
 
         if self.restart:
             print("Model Loading...")
             self.model.netG, self.model.netD, self.model.optimG, self.model.optimD, self.startScale, self.startStep = load(self.model.netG, self.model.netD, self.model.optimG, self.model.optimD)
             print(f"Done... Scale : {self.startScale}, Step : {self.startStep}")
+        
+        torch.cuda.set_device(gpu)
+        init_process(gpu, size, self.sharedFilePath)
+
+        self.model.cuda(gpu)
+        self.model = DDP(self.model, device_ids=[gpu])
 
         for index, scale in enumerate(self.scale_features):
             # Model Add Scale and Print Information
@@ -82,7 +94,9 @@ class Trainer():
                 # Make Loader New Scale
                 self.transform_train = transforms.Compose([Resize(self.nowH, self.nowW), RandomFlip(horizontal=False), Normalization(mean=0.5, std=0.5)])
                 self.dataset_train = Dataset(data_dir=self.path, transforms=self.transform_train)
-                self.loader_train = DataLoader(self.dataset_train, batch_size=self.batchSize, shuffle=True, num_workers=self.numWorker)
+                self.dataset_sampler = DistributedSampler(self.dataset_train)
+                self.loader_train = DataLoader(self.dataset_train, batch_size=self.batchSize, shuffle=False, num_workers=self.numWorker,
+                                                pin_memory=True, sampler=self.dataset_sampler)
 
                 gc.collect()
             
@@ -105,7 +119,7 @@ class Trainer():
 
                 # Main Iteration
                 for data in self.loader_train:
-                    real_input = data["real_img"]
+                    real_input = data["real_img"].cuda(gpu, non_blocking=True)
                     self.model.oneStep(real_input)
 
                 # Print 100 Iteration

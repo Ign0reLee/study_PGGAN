@@ -1,11 +1,11 @@
-from libs.losses import WGANGPGradientPenalty
+
 import torch
 import torch.nn as nn
 
 from libs.models import *
-from libs.losses import WGANGPGradientPenalty as WGANGP
+from libs.losses import WGANGPGradientPenalty
 
-class ProgressiveGrowingGAN(nn.Module):
+class ProgressiveGrowingGAN():
     def __init__(self,
                 latentDims = 512,
                 output_dims = 3,
@@ -75,7 +75,7 @@ class ProgressiveGrowingGAN(nn.Module):
         loss_fake  = torch.sum(predFake)
 
         # WGAN-GP Part
-        self.lossWGANGP = [WGANGPGradientPenalty(realInput, predOutput, self.netD, self.lambdaGP)]
+        self.lossWGANGP += [WGANGPGradientPenalty(realInput, predOutput, self.netD, self.lambdaGP)]
 
         # Loss Backward part
         loss_D = loss_real + loss_fake
