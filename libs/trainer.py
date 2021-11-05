@@ -65,7 +65,7 @@ class Trainer():
 
         # # Make Default DataSet
         self.transform_train = transforms.Compose([Resize((self.nowH, self.nowW)), RandomFlip(horizontal=False), Normalization(mean=0.5, std=0.5)])
-        self.dataset_train = Dataset(data_dir=path, transforms=self.transform_train)
+        self.dataset_train = Dataset(data_dir=path, transform=self.transform_train)
         self.dataset_sampler = DistributedSampler(self.dataset_train)
         self.loader_train = DataLoader(self.dataset_train, batch_size=self.batchSize, shuffle=False, num_workers=self.numWorker,
                                         pin_memory=True, sampler=self.dataset_sampler)
